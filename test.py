@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.metrics import confusion_matrix
 from scipy.spatial.distance import cdist
-from skimage.measure import label, regionprops, moments, moments_central, moments_normalized, moments_hu
+from skimage.measure import label, regionprops, moments, moments_central,inertia_tensor, moments_normalized, moments_hu, find_contours, profile_line
 from skimage import io, exposure, color
 from skimage.morphology import binary_closing
 import matplotlib.pyplot as plt
@@ -23,6 +23,7 @@ file = sys.argv[1]
 database = []
 Features=[]
 contourF = []
+Inertia = []
 for photo in os.listdir(directory):
     if(photo == 'test.bmp'):
         continue
@@ -66,7 +67,7 @@ for photo in os.listdir(directory):
    
     count = 0
     Char = []
-    
+    prof = []
     for props in regions:
         cnr = 0
         minr,minc, maxr,maxc = props.bbox
@@ -77,6 +78,8 @@ for photo in os.listdir(directory):
         mu = moments_central(roi, center=(cr,cc))
         nu = moments_normalized(mu)
         hu = moments_hu(nu)
+        inertia = inertia_tensor(roi, mu)
+        Inertia.append(inertia)
         Features.append(hu)
         Char.append(hu)
         ax.add_patch(Rectangle((minc, minr), maxc - minc, maxr - minr,
@@ -84,7 +87,6 @@ for photo in os.listdir(directory):
         
     ax.set_title('Bounding Boxes')
     io.show()
-   
     for ch in Char:
         database.append(pname)
 temp = []
@@ -138,6 +140,7 @@ ax = plt.gca()
 count = 0
 ccount = []
 testF = []
+testI = [] 
 for props in regions:
      minr,minc, maxr,maxc = props.bbox
      roi = img_binary[minr:maxr, minc:maxc]
@@ -148,12 +151,15 @@ for props in regions:
      nu = moments_normalized(mu)
      hu = moments_hu(nu)
      testF.append(hu)
+     inertia = inertia_tensor(roi, mu)
+     testI.append(inertia)
      Char.append(hu)
      ax.add_patch(Rectangle((minc, minr), maxc - minc, maxr - minr,
      fill = False, edgecolor = 'red', linewidth = 1))
  #Char.append(pname)
 ax.set_title('Bounding Boxes')
 io.show()
+
 z =0
 for q in testF:
     for f in q:
@@ -171,14 +177,43 @@ for c in D:
     for r in c:
         dist = D
 
+nbr = 0
+neighbor = []
+neighbors = []
+countr = 0
 D_index = np.argsort(D, axis = 1)
 for ind in D_index:
-    print(ind)
+    for i in ind:
+        if nbr < 10:
+            neighbor.append(i)
+        nbr = nbr + 1
+    neighbor = []
+    nbr = 0
+    neighbors.append(neighbor)
+    
+similar = 0
+oldsim = 0
+voted = []
+for n in neighbors:
+    for nb in n:
+        nb = database[nb]
+        for x in n:
+            x = database[x]
+            if nb == x:
+                similar = similar + 1
+        if similar > oldsim:
+            vote = nb
+        oldsim = similar
+        similar = 0
+    voted.append(vote)
+            
+
+
 def column(matrix, i):
     return [row[i] for row in matrix]
 temp = []
-Ypred = column(D_index, 0)
-
+#Ypred = column(D_index, 0)
+Ypred = voted
 cnr = 1
 for f in testF:
     temp.append(cnr)
@@ -186,11 +221,11 @@ for f in testF:
 Ytrue = temp
 
 c1 = 0
-for l in Ypred:
-   l = database[l]
+#for l in Ypred:
+ #  l = database[l]
   
-   Ypred[c1] = l
-   c1 = c1+1
+  # Ypred[c1] = l
+   #c1 = c1+1
    
 c2 = 0
 for o in Ytrue:
@@ -219,20 +254,16 @@ for o in Ytrue:
 c3 = 0
 
 co = 0
+
 for e in Ypred:
     if(Ypred[c3] == Ytrue[c3]):
         co = co+1
     c3 = c3+1
 loop = Ypred
-count = 1
-for yy in Ypred:
-    if count < 9:
-        print(yy)
-    else:
-        print('\n')
-        count = 1
-    count = count + 1
+
+
     
+
 print("Letters Recognized: " + str(co))
 print("Recognition Rate: " + str((co/len(Ytrue)) *100) + "%")
 
